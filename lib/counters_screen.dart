@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'counter_widget.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'backend_response_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class CountersScreen extends StatefulWidget {
   const CountersScreen({super.key});
@@ -18,7 +18,7 @@ class _CountersScreenState extends State<CountersScreen> {
   int _counterCarla = 0;
   int _counterSascha = 0;
   final String _backendResponse = 'Fetching data...';
-  WebSocketChannel? _channel;
+  IO.Socket? _socket;
 
   Future<void> _incrementCounterCarla() async {
     setState(() {
@@ -58,16 +58,10 @@ class _CountersScreenState extends State<CountersScreen> {
   }
 
   void _connectWebSocket() {
-    _channel = WebSocketChannel.connect(Uri.parse('ws://192.168.0.165:8080/crazy_obj_updated'));
-    _channel!.stream.listen(
-      (message) {
-        if (message == '/crazy_obj_updated') {  // Add the slash
-          fetchData();
-        }
-      },
-      onError: (error) => print('WebSocket error: $error'),
-      onDone: () => print('WebSocket closed'),
-    );
+    _socket = IO.io('http://192.168.0.165:8080', <String, dynamic>{
+      'transports': ['websocket'],
+    });
+    _socket!.on('crazy_obj_updated', (data) => fetchData());
   }
 
   Future<void> fetchData() async {
@@ -94,7 +88,7 @@ class _CountersScreenState extends State<CountersScreen> {
 
   @override
   void dispose() {
-    _channel?.sink.close();
+    _socket?.disconnect();
     super.dispose();
   }
 
