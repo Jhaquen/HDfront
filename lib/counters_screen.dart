@@ -15,7 +15,7 @@ class CountersScreen extends StatefulWidget {
 class _CountersScreenState extends State<CountersScreen> {
   int _counterCarla = 0;
   int _counterSascha = 0;
-  String _backendResponse = 'Fetching data...';
+  final String _backendResponse = 'Fetching data...';
   WebSocketChannel? _channel;
 
   Future<void> _incrementCounterCarla() async {
