@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'backend_response_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class CountersScreen extends StatefulWidget {
   const CountersScreen({super.key});
@@ -52,6 +54,7 @@ class _CountersScreenState extends State<CountersScreen> {
     super.initState();
     _connectWebSocket();
     fetchData();
+    checkForUpdates();
   }
 
   void _connectWebSocket() {
@@ -93,6 +96,40 @@ class _CountersScreenState extends State<CountersScreen> {
   void dispose() {
     _channel?.sink.close();
     super.dispose();
+  }
+
+  Future<void> checkForUpdates() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    final currentVersion = packageInfo.version;
+    try {
+      final response = await http.get(Uri.parse('https://api.github.com/repos/Jhaquen/HDfront/releases/latest'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final latestTag = data['tag_name'];
+        if (latestTag != 'v$currentVersion') {
+          showUpdateDialog(latestTag);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  void showUpdateDialog(String tag) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Available'),
+        content: Text('A new version $tag is available. Download now?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Later')),
+          TextButton(onPressed: () {
+            launchUrl(Uri.parse('https://github.com/Jhaquen/HDfront/releases/download/$tag/app-release.apk'));
+            Navigator.pop(context);
+          }, child: const Text('Download')),
+        ],
+      ),
+    );
   }
 
   @override
