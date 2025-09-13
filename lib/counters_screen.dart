@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'counter_widget.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'backend_response_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'config.dart';
 
 class CountersScreen extends StatefulWidget {
   const CountersScreen({super.key});
@@ -17,8 +17,6 @@ class CountersScreen extends StatefulWidget {
 class _CountersScreenState extends State<CountersScreen> {
   int _counterCarla = 0;
   int _counterSascha = 0;
-  final String _backendResponse = 'Fetching data...';
-  IO.Socket? _socket;
 
   Future<void> _incrementCounterCarla() async {
     setState(() {
@@ -36,13 +34,16 @@ class _CountersScreenState extends State<CountersScreen> {
 
   Future<void> _sendCountersToBackend() async {
     try {
+      print('Sending counters to backend: Carla: $_counterCarla, Sascha: $_counterSascha');
       final response = await http.post(
-        Uri.parse('http://192.168.0.165:8080/updateCrazyObj'),
+        Uri.parse('$backendUrl/updateCrazyObj'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'Carla': _counterCarla, 'Sascha': _counterSascha}),
       );
-      if (response.statusCode != 200) {
-        print('Failed to update backend: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        print('Backend update successful: ${response.body}');
+      } else {
+        print('Failed to update backend: ${response.statusCode}, body: ${response.body}');
       }
     } catch (e) {
       print('Error sending to backend: $e');
@@ -52,16 +53,8 @@ class _CountersScreenState extends State<CountersScreen> {
   @override
   void initState() {
     super.initState();
-    _connectWebSocket();
     fetchData();
     checkForUpdates();
-  }
-
-  void _connectWebSocket() {
-    _socket = IO.io('http://192.168.0.165:8080', <String, dynamic>{
-      'transports': ['websocket'],
-    });
-    _socket!.on('crazy_obj_updated', (data) => fetchData());
   }
 
   Future<void> fetchData() async {
@@ -70,7 +63,7 @@ class _CountersScreenState extends State<CountersScreen> {
 
     // Fetch counters from /CrazyObj
     try {
-      final counterResponse = await http.get(Uri.parse('http://192.168.0.165:8080/CrazyObj'));
+      final counterResponse = await http.get(Uri.parse('$backendUrl/CrazyObj'));
       if (counterResponse.statusCode == 200) {
         final jsonResponse = json.decode(counterResponse.body) as Map<String, dynamic>;
         newCarla = jsonResponse['Carla'] ?? newCarla;
@@ -84,12 +77,6 @@ class _CountersScreenState extends State<CountersScreen> {
       _counterCarla = newCarla;
       _counterSascha = newSascha;
     });
-  }
-
-  @override
-  void dispose() {
-    _socket?.disconnect();
-    super.dispose();
   }
 
   Future<void> checkForUpdates() async {
@@ -131,41 +118,9 @@ class _CountersScreenState extends State<CountersScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Counters'),
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.blue,
-              ),
-              child: Text(
-                'Menu',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            ListTile(
-              title: const Text('Counters'),
-              onTap: () {
-                Navigator.pop(context); // Close drawer
-              },
-            ),
-            ListTile(
-              title: const Text('Backend Response'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BackendResponseScreen(backendResponse: _backendResponse),
-                  ),
-                );
-              },
-            ),
-          ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: Center(
