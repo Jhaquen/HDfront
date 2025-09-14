@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:math';
 import 'dart:convert';
+import 'dart:io';
 import 'config.dart';
 import 'counters_screen.dart';
 import 'chart_renderer.dart' as renderer;
 import 'savedCharts_main_screen.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:android_intent_plus/android_intent.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -37,6 +41,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   late Animation<double> _focusAnimation;
   late AnimationController _scaleController;
   late Animation<double> _scaleAnimation;
+  String updateStatus = '(Not?) checking for updates';
 
   Offset _rotateOffset(Offset offset, double rotation) {
     final cosR = cos(rotation);
@@ -90,6 +95,10 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     _connectWebSocket();
     fetchData();
     fetchChartQuickHTML();
+    updateStatus = 'Checking for updates...';
+    if (isRelease) {
+      _checkForUpdate();
+    }
     if (!isLoggedIn) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showLoginDialog();
@@ -121,6 +130,109 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       print('Received update: $data');
       fetchData();
     });
+  }
+
+  Future<bool> _checkForUpdate() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      print('Current version: $currentVersion');
+      final response = await http.get(Uri.parse('https://api.github.com/repos/Jhaquen/HDfront/releases/latest'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final latestVersion = data['tag_name'] as String;
+        print('Latest version: $latestVersion');
+        if (_isVersionNewer(latestVersion, currentVersion)) {
+          final assets = data['assets'] as List;
+          final apkAsset = assets.firstWhere(
+            (asset) => (asset['name'] as String).endsWith('.apk'),
+            orElse: () => null,
+          );
+          if (apkAsset != null) {
+            final apkUrl = apkAsset['browser_download_url'] as String;
+            setState(() {
+              updateStatus = 'Update available, downloading...';
+            });
+            _downloadAndInstallApk(apkUrl, latestVersion);
+            return true;
+          }
+        } else {
+          setState(() {
+            updateStatus = 'App is up to date';
+          });
+        }
+      } else {
+        print('GitHub API failed: ${response.statusCode}');
+        setState(() {
+          updateStatus = 'Failed to check for updates';
+        });
+      }
+    } catch (e) {
+      print('Update check error: $e');
+      setState(() {
+        updateStatus = 'Error checking for updates';
+      });
+    }
+    return false;
+  }
+
+  bool _isVersionNewer(String latest, String current) {
+    // Simple version comparison (assumes semantic versioning)
+    final latestParts = latest.replaceAll('v', '').split('.').map(int.parse).toList();
+    final currentParts = current.split('.').map(int.parse).toList();
+    for (int i = 0; i < latestParts.length && i < currentParts.length; i++) {
+      if (latestParts[i] > currentParts[i]) return true;
+      if (latestParts[i] < currentParts[i]) return false;
+    }
+    return latestParts.length > currentParts.length;
+  }
+
+  Future<void> _downloadAndInstallApk(String url, String version) async {
+    try {
+      final dir = await getExternalStorageDirectory();
+      final filePath = '${dir!.path}/hdapp_$version.apk';
+      final file = File(filePath);
+      final response = await http.get(Uri.parse(url));
+      await file.writeAsBytes(response.bodyBytes);
+      // Show dialog to install
+      _showInstallDialog(filePath);
+    } catch (e) {
+      print('Download failed: $e');
+    }
+  }
+
+  void _showInstallDialog(String filePath) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Update Available'),
+          content: const Text('A new version has been downloaded. Install now?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Later'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _installApk(filePath);
+              },
+              child: const Text('Install'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _installApk(String filePath) async {
+    final intent = AndroidIntent(
+      action: 'action_view',
+      data: 'file://$filePath',
+      type: 'application/vnd.android.package-archive',
+    );
+    await intent.launch();
   }
 
   Future<void> fetchData() async {
@@ -273,8 +385,8 @@ Future<void> fetchChartQuickHTML() async {
     chart.focusValue = _focusAnimation.value;
 
     renderer.CanvasText leftText = renderer.CanvasText(
-      text: 'Active Gates: ${activeGates.join(', ')}\n${backendUrl}',
-      position: const Offset(-150, 100),
+      text: 'TestBox\n\nActive Gates: ${activeGates.join(', ')}\n${backendUrl}\n${updateStatus}',
+      position: const Offset(-150, 100),  // Changed from -150 to 50 for visibility
       fontSize: 12,
       color: Colors.black,
       size: screenSize.width * 0.6,

@@ -19,6 +19,19 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    flavorDimensions += "default"
+
+    productFlavors {
+        create("dev") {
+            dimension = "default"
+            applicationId = "com.example.hdapp.dev"
+        }
+        create("prod") {
+            dimension = "default"
+            applicationId = "com.example.hdapp"
+        }
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.hdapp"
