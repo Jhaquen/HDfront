@@ -30,7 +30,7 @@ else
 fi
 
 NEW_TAG="v0.0.$NEW_TAG_NUMBER"
-NEW_VERSION="0.0.$NEW_TAG_NUMBER+1"
+NEW_VERSION="0.0.$NEW_TAG_NUMBER"
 
 # Step 2: Update pubspec.yaml with the new version
 echo "Updating pubspec.yaml to version: $NEW_VERSION..."
