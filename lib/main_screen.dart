@@ -4,8 +4,8 @@ import 'dart:math';
 import 'dart:convert';
 import 'config.dart';
 import 'counters_screen.dart';
-import 'chart.dart';
-import 'charts_screen.dart';
+import 'chart_renderer.dart' as renderer;
+import 'savedCharts_main_screen.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class MainScreen extends StatefulWidget {
@@ -19,16 +19,24 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   IO.Socket? _socket;
   String currentUser = 'Carla';
   late String _currentResponse;
-  late String ascendent;
-  late Chart chart;
+  late String transit;
+  late renderer.Chart chart;
   List<int> activeGates = [];
   String responseText = '';
   String currentView = 'chart'; // 'chart', 'left', 'right'
   bool isLoggedIn = false;
+  double panOffset = 0.0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TransformationController _transformationController;
   late AnimationController _animationController;
   late Animation<Matrix4> _matrixAnimation;
+  late AnimationController _panController;
+  late Animation<double> _panAnimation;
+  int focusedObjectIndex = -1;
+  late AnimationController _focusController;
+  late Animation<double> _focusAnimation;
+  late AnimationController _scaleController;
+  late Animation<double> _scaleAnimation;
 
   Offset _rotateOffset(Offset offset, double rotation) {
     final cosR = cos(rotation);
@@ -43,15 +51,45 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _currentResponse = 'Loading...';
-    ascendent = "L...";
+    transit = "Loading...";
     _transformationController = TransformationController();
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
     _matrixAnimation = Matrix4Tween().animate(_animationController);
     _matrixAnimation.addListener(() {
       _transformationController.value = _matrixAnimation.value;
     });
+    _panController = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _panAnimation = Tween<double>(begin: 0, end: 0).animate(_panController);
+    _panAnimation.addListener(() {
+      setState(() {
+        panOffset = _panAnimation.value;
+      });
+    });
+    // Initialize scale animation for breathing effect
+    _scaleController = AnimationController(
+      duration: const Duration(seconds: 2),  // Duration of one breath cycle
+      vsync: this,
+    )..repeat(reverse: true);  // Repeat forward and backward for breathing
+
+    _scaleAnimation = Tween<double>(begin: 0.7, end: 1.1).animate(
+      CurvedAnimation(parent: _scaleController, curve: Curves.easeInOut),
+    );
+
+    // Update the UI on each animation frame
+    _scaleAnimation.addListener(() {
+      setState(() {});
+    });
+
+    _focusController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _focusAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_focusController);
+    _focusAnimation.addListener(() { setState(() {}); });
+
     _connectWebSocket();
     fetchData();
+    fetchChartQuickHTML();
     if (!isLoggedIn) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showLoginDialog();
@@ -62,6 +100,9 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _animationController.dispose();
+    _panController.dispose();
+    _scaleController.dispose();
+    _focusController.dispose();
     _socket?.disconnect();
     super.dispose();
   }
@@ -93,7 +134,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             setState(() {
               activeGates = List<int>.from(data);
               _currentResponse = 'Active gates: ${activeGates.join(', ')}';
-              ascendent = 'res: ${json.decode(responseAsc.body)}';
+              transit = 'res: ${json.decode(responseAsc.body)}';
             });
           } else {
             setState(() {
@@ -117,18 +158,32 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> fetchChartQuickHTML() async {
-    try {
-      final response = await http.get(Uri.parse('$backendUrl/getChartQuickHTML'));
+Future<void> fetchChartQuickHTML() async {
+  try {
+    final response = await http.get(Uri.parse('$backendUrl/getChart'));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data is List) {
+        final formatted = data.map((item) => '${item['gateNumber']}.${item['line']} ${item['planet']}').join('\n');
+        setState(() {
+          responseText = formatted;
+        });
+      } else {
+        setState(() {
+          responseText = 'Invalid data format';
+        });
+      }
+    } else {
       setState(() {
-        responseText = response.body;
-      });
-    } catch (e) {
-      setState(() {
-        responseText = 'Error fetching HTML: $e';
+        responseText = 'Error: ${response.statusCode}';
       });
     }
+  } catch (e) {
+    setState(() {
+      responseText = 'Error: $e';
+    });
   }
+}
 
   Future<bool> login(String username, String password) async {
     final url = Uri.parse('$backendUrl/login');
@@ -212,7 +267,26 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final topPadding = MediaQuery.of(context).padding.top;
-    chart = Chart(activeGates: activeGates);
+    chart = renderer.Chart(activeGates: activeGates);
+    chart.scale = _scaleAnimation.value;  // Apply animated scale
+    chart.focusedIndex = focusedObjectIndex;
+    chart.focusValue = _focusAnimation.value;
+
+    renderer.CanvasText leftText = renderer.CanvasText(
+      text: 'Active Gates: ${activeGates.join(', ')}',
+      position: const Offset(-150, 100),
+      fontSize: 12,
+      color: Colors.black,
+      size: screenSize.width * 0.6,
+    );
+
+    renderer.CanvasText rightText = renderer.CanvasText(
+      text: responseText,
+      position: Offset(350, 100),
+      fontSize: 12,
+      color: Colors.black,
+      size: screenSize.width * 0.6,
+    );
 
     if (!isLoggedIn) {
       return const Scaffold(
@@ -266,7 +340,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           GestureDetector(
             onTapUp: (TapUpDetails details) {
               final localPosition = details.localPosition;
-              final screenSize = MediaQuery.of(context).size;
               // Inverse transform to get canvas position
               final Matrix4 inverse = Matrix4.inverted(_transformationController.value);
               final canvasPosition = MatrixUtils.transformPoint(inverse, localPosition);
@@ -294,46 +367,40 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                   }
                 }
               }
-              // Then check objects for zoom
-              for (final obj in chart.objects) {
+              // Then check objects for focus
+              for (int i = 0; i < chart.objects.length; i++) {
+                final obj = chart.objects[i];
                 if ((canvasPosition - obj.position).distance < obj.size / 2) {
-                  // Zoom to fit the object smoothly (faster zoom)
-                  final scale = 0.8 * min(screenSize.width / obj.size, screenSize.height / obj.size);
-                  final translation = screenSize.center(Offset.zero) - obj.position * scale;
-                  final targetMatrix = Matrix4.identity()
-                    ..translate(translation.dx, translation.dy)
-                    ..scale(scale);
-                  _matrixAnimation = Matrix4Tween(begin: _transformationController.value, end: targetMatrix).animate(_animationController);
-                  _animationController.forward(from: 0.0);
+                  setState(() {
+                    focusedObjectIndex = i;
+                  });
+                  _focusController.forward(from: 0.0);
                   break;
                 }
               }
             },
             onDoubleTap: () {
-              // Reset to chart view
               setState(() {
-                currentView = 'chart';
-                responseText = '';
+                focusedObjectIndex = -1;
               });
+              _focusController.reverse();
             },
             onHorizontalDragEnd: (DragEndDetails details) {
-              if (details.velocity.pixelsPerSecond.dx < -300) { // More generous threshold
-                // Swipe left: show active gates on left
-                setState(() {
-                  currentView = 'left';
-                  responseText = 'Active Gates: ${activeGates.join(', ')}';
-                });
-              } else if (details.velocity.pixelsPerSecond.dx > 300) { // More generous threshold
-                // Swipe right: fetch HTML and show on right
-                currentView = 'right';
-                fetchChartQuickHTML();
+              if (details.velocity.pixelsPerSecond.dx < -300) { // Swipe left
+                double target = panOffset - 200;
+                _panAnimation = Tween<double>(begin: panOffset, end: target).animate(_panController);
+                _panController.forward(from: 0.0);
+              } else if (details.velocity.pixelsPerSecond.dx > 300) { // Swipe right
+                double target = panOffset + 200;
+                _panAnimation = Tween<double>(begin: panOffset, end: target).animate(_panController);
+                _panController.forward(from: 0.0);
               }
             },
             child: InteractiveViewer(
               transformationController: _transformationController,
               panEnabled: false, // Disable panning
               child: CustomPaint(
-                painter: CanvasPainter(chart, screenSize, responseText, currentView),
+                painter: renderer.ChartPainter(chart, screenSize, panOffset, leftText, rightText),
                 size: Size.infinite,
               ),
             ),
@@ -360,7 +427,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               ),
               child: Center(
                 child: Text(
-                  'Status: $ascendent',
+                  'Status: $transit',
                   style: const TextStyle(fontSize: 14, color: Colors.black),
                   overflow: TextOverflow.ellipsis,
                 ),

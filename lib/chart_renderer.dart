@@ -6,6 +6,8 @@ class Chart {
   List<Connection> connections = [];
   double scale = 0.8;
   List<int> activeGates;
+  int? focusedIndex;
+  double focusValue = 0.0;
 
   // Map object names to their gates
   final Map<String, List<Map<String, dynamic>>> gateMap = {
@@ -144,25 +146,30 @@ class Chart {
   void draw(Canvas canvas, Size screenSize) {
     double startY = screenSize.height * 0.2;
     double spacing = (screenSize.height * 0.8) / 6; // 5 vertical + 1 below
+    double sizeIncreaseOnTap = 4;
 
     for (int i = 0; i < 5; i++) {
+      double additionalScale = (focusedIndex == i) ? focusValue * sizeIncreaseOnTap : focusValue * 0.2;
       objects[i].position = Offset(screenSize.width / 2, startY + i * spacing);
-      objects[i].size = 50 * scale;
+      objects[i].size = 50 * (scale + additionalScale);
     }
     // Position triangles beside purple square (index 4)
     double purpleY = objects[4].position.dy;
+    double additionalScale5 = (focusedIndex == 5) ? focusValue * sizeIncreaseOnTap : focusValue * 0.2;
     objects[5].position = Offset(screenSize.width / 2 - 120, purpleY); // Left
-    objects[5].size = 50 * scale;
-    objects[5].draw(canvas, activeGates);
+    objects[5].size = 50 * (scale + additionalScale5);
+    objects[5].draw(canvas, activeGates, scale + additionalScale5);
 
+    double additionalScale6 = (focusedIndex == 6) ? focusValue * sizeIncreaseOnTap : focusValue * 0.2;
     objects[6].position = Offset(screenSize.width / 2 + 120, purpleY); // Right
-    objects[6].size = 50 * scale;
-    objects[6].draw(canvas, activeGates);
+    objects[6].size = 50 * (scale + additionalScale6);
+    objects[6].draw(canvas, activeGates, scale + additionalScale6);
 
     // Position square below
+    double additionalScale7 = (focusedIndex == 7) ? focusValue * sizeIncreaseOnTap : focusValue * 0.2;
     objects[7].position = Offset(screenSize.width / 2, startY + 5 * spacing);
-    objects[7].size = 50 * scale;
-    objects[7].draw(canvas, activeGates);
+    objects[7].size = 50 * (scale + additionalScale7);
+    objects[7].draw(canvas, activeGates, scale + additionalScale7);
 
     // Draw lines between connected objects
     for (final conn in connections) {
@@ -170,7 +177,8 @@ class Chart {
     }
 
     for (int i = 0; i < 5; i++) {
-      objects[i].draw(canvas, activeGates);
+      double effectiveScale = objects[i].size / 50.0;
+      objects[i].draw(canvas, activeGates, effectiveScale);
     }
 
 
@@ -196,7 +204,7 @@ abstract class ChartObject {
     List<ChartObject>? connectedTo,
   }) : connectedTo = connectedTo ?? [];
 
-  void draw(Canvas canvas, List<int> activeGates);
+  void draw(Canvas canvas, List<int> activeGates, double scale);
 }
 
 class Triangle extends ChartObject {
@@ -209,8 +217,17 @@ class Triangle extends ChartObject {
     super.gates,
   });
 
+  Offset _rotateOffset(Offset offset, double rotation) {
+    final cosR = cos(rotation);
+    final sinR = sin(rotation);
+    return Offset(
+      offset.dx * cosR - offset.dy * sinR,
+      offset.dx * sinR + offset.dy * cosR,
+    );
+  }
+
   @override
-  void draw(Canvas canvas, List<int> activeGates) {
+  void draw(Canvas canvas, List<int> activeGates, double scale) {
     final fillPaint = Paint()
       ..color = color.withOpacity(0.7)
       ..style = PaintingStyle.fill;
@@ -232,22 +249,13 @@ class Triangle extends ChartObject {
     canvas.drawPath(path, fillPaint);
     canvas.drawPath(path, strokePaint);
 
+    canvas.restore();
+
     // Draw gates
     for (final gate in gates) {
       final isActive = activeGates.contains(gate.number);
-      final gatePaint = Paint()..color = isActive ? Colors.black : Colors.white..style = PaintingStyle.fill;
-      final gateStroke = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1;
-      canvas.drawCircle(gate.relativePosition, 4, gatePaint);
-      canvas.drawCircle(gate.relativePosition, 4, gateStroke);
-      final textPainter = TextPainter(
-        text: TextSpan(text: gate.number.toString(), style: const TextStyle(color: Colors.black, fontSize: 6)),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, gate.relativePosition - Offset(textPainter.width / 2, textPainter.height / 2));
+      gate.draw(canvas, position + _rotateOffset(gate.relativePosition, rotation), isActive, scale);
     }
-
-    canvas.restore();
   }
 }
 
@@ -261,8 +269,17 @@ class Square extends ChartObject {
     super.gates,
   });
 
+  Offset _rotateOffset(Offset offset, double rotation) {
+    final cosR = cos(rotation);
+    final sinR = sin(rotation);
+    return Offset(
+      offset.dx * cosR - offset.dy * sinR,
+      offset.dx * sinR + offset.dy * cosR,
+    );
+  }
+
   @override
-  void draw(Canvas canvas, List<int> activeGates) {
+  void draw(Canvas canvas, List<int> activeGates, double scale) {
     final fillPaint = Paint()
       ..color = color.withOpacity(0.7)
       ..style = PaintingStyle.fill;
@@ -280,22 +297,13 @@ class Square extends ChartObject {
     canvas.drawRect(rect, fillPaint);
     canvas.drawRect(rect, strokePaint);
 
+    canvas.restore();
+
     // Draw gates
     for (final gate in gates) {
       final isActive = activeGates.contains(gate.number);
-      final gatePaint = Paint()..color = isActive ? Colors.black : Colors.white..style = PaintingStyle.fill;
-      final gateStroke = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1;
-      canvas.drawCircle(gate.relativePosition, 4, gatePaint);
-      canvas.drawCircle(gate.relativePosition, 4, gateStroke);
-      final textPainter = TextPainter(
-        text: TextSpan(text: gate.number.toString(), style: const TextStyle(color: Colors.black, fontSize: 10)),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, gate.relativePosition - Offset(textPainter.width / 2, textPainter.height / 2));
+      gate.draw(canvas, position + _rotateOffset(gate.relativePosition, rotation), isActive, scale);
     }
-
-    canvas.restore();
   }
 }
 
@@ -334,39 +342,100 @@ class Gate {
   Offset relativePosition;
 
   Gate(this.number, this.relativePosition);
+
+  void draw(Canvas canvas, Offset position, bool isActive, double scale) {
+    final fillColor = isActive ? Colors.red : Colors.white;
+    final strokeColor = isActive ? Colors.red.withOpacity(0.7) : Colors.black.withOpacity(0.7);
+    canvas.drawCircle(position, 4 * scale, Paint()..color = fillColor);
+    canvas.drawCircle(position, 4 * scale, Paint()..color = strokeColor..style = PaintingStyle.stroke..strokeWidth = 1);
+    final textPainter = TextPainter(
+      text: TextSpan(text: number.toString(), style: TextStyle(color: Colors.black, fontSize: 10 * scale)),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, position - Offset(textPainter.width / 2, textPainter.height / 2 + 10 * scale));
+  }
 }
 
-class CanvasPainter extends CustomPainter {
+abstract class CanvasObject {
+  Offset position;
+  double size;
+  double rotation;
+  Color color;
+
+  CanvasObject({
+    required this.position,
+    this.size = 50,
+    this.rotation = 0,
+    this.color = Colors.blue
+  });
+
+  void draw(Canvas canvas);
+}
+
+class CanvasText extends CanvasObject {
+  String text;
+  double fontSize;
+  TextAlign textAlign;
+
+  CanvasText({
+    required this.text,
+    required super.position,
+    super.size,
+    super.rotation,
+    super.color,
+    this.fontSize = 12,
+    this.textAlign = TextAlign.left,
+  });
+
+  @override
+  void draw(Canvas canvas) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: textAlign,
+    );
+
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    canvas.rotate(rotation);
+
+    textPainter.layout(maxWidth: size);
+
+    // Add background rectangle for visibility
+    final backgroundRect = Rect.fromLTWH(-5, -5, size + 10, textPainter.height + 10);
+    canvas.drawRect(backgroundRect, Paint()..color = const Color.fromARGB(255, 152, 172, 76).withOpacity(0.8));
+
+    textPainter.paint(canvas, Offset.zero);
+
+    canvas.restore();
+  }
+}
+
+class ChartPainter extends CustomPainter {
   final Chart chart;
   final Size screenSize;
-  final String responseText;
-  final String currentView;
+  final double panOffset;
+  final CanvasText leftText;
+  final CanvasText rightText;
 
-  CanvasPainter(this.chart, this.screenSize, this.responseText, this.currentView);
+  ChartPainter(this.chart, this.screenSize, this.panOffset, this.leftText, this.rightText);
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (currentView == 'chart') {
-      chart.draw(canvas, screenSize);
-    } else {
-      // Draw chart in center panel
-      canvas.save();
-      canvas.translate(screenSize.width / 3, 0);
-      chart.draw(canvas, Size(screenSize.width / 3, screenSize.height));
-      canvas.restore();
+    canvas.save();
+    canvas.translate(panOffset, 0);
+    chart.draw(canvas, screenSize);
+    leftText.draw(canvas);
+    rightText.draw(canvas);
+    canvas.restore();
 
-      // Draw text on left or right
-      final textPainter = TextPainter(
-        text: TextSpan(text: responseText, style: const TextStyle(color: Colors.black, fontSize: 12)),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout(maxWidth: screenSize.width / 3 - 20);
-      if (currentView == 'left') {
-        textPainter.paint(canvas, const Offset(10, 60));
-      } else if (currentView == 'right') {
-        textPainter.paint(canvas, Offset(screenSize.width * 2 / 3 + 10, 60));
-      }
-    }
   }
 
   @override

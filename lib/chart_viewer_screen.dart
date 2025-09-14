@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:convert';
-import 'chart.dart';
-import 'charts_screen.dart';
+import 'chart_renderer.dart';
+import 'savedCharts_main_screen.dart';
 import '../config.dart';
 import 'package:http/http.dart' as http;
+import 'package:html/parser.dart' as htmlParser;
 
 class ChartViewerScreen extends StatefulWidget {
   final ChartData chart;
@@ -20,9 +21,12 @@ class _ChartViewerScreenState extends State<ChartViewerScreen> with TickerProvid
   List<int> activeGates = [];
   String responseText = '';
   String currentView = 'chart'; // 'chart', 'left', 'right'
+  double panOffset = 0.0;
   late TransformationController _transformationController;
   late AnimationController _animationController;
   late Animation<Matrix4> _matrixAnimation;
+  late AnimationController _panController;
+  late Animation<double> _panAnimation;
 
   Offset _rotateOffset(Offset offset, double rotation) {
     final cosR = cos(rotation);
@@ -43,7 +47,15 @@ class _ChartViewerScreenState extends State<ChartViewerScreen> with TickerProvid
     _matrixAnimation.addListener(() {
       _transformationController.value = _matrixAnimation.value;
     });
+    _panController = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _panAnimation = Tween<double>(begin: 0, end: 0).animate(_panController);
+    _panAnimation.addListener(() {
+      setState(() {
+        panOffset = _panAnimation.value;
+      });
+    });
     fetchData();
+    fetchChartQuickHTML();
   }
 
   Future<void> fetchData() async {
@@ -85,9 +97,15 @@ class _ChartViewerScreenState extends State<ChartViewerScreen> with TickerProvid
     }
   }
 
+  String _parseHtml(String html) {
+    final document = htmlParser.parse(html);
+    return document.body?.text ?? html;  // Strip HTML tags
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
+    _panController.dispose();
     super.dispose();
   }
 
@@ -95,6 +113,22 @@ class _ChartViewerScreenState extends State<ChartViewerScreen> with TickerProvid
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final topPadding = MediaQuery.of(context).padding.top;
+
+    CanvasText leftText = CanvasText(
+      text: 'Active Gates: ${activeGates.join(', ')}',
+      position: const Offset(200, 100),
+      fontSize: 12,
+      color: Colors.black,
+      size: screenSize.width / 3 - 20,
+    );
+
+    CanvasText rightText = CanvasText(
+      text: "TEST",
+      position: Offset(screenSize.width - 200, 100),
+      fontSize: 20,
+      color: Colors.black,
+      size: screenSize.width / 3 - 20,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -149,30 +183,26 @@ class _ChartViewerScreenState extends State<ChartViewerScreen> with TickerProvid
               }
             },
             onHorizontalDragEnd: (DragEndDetails details) {
-              if (details.velocity.pixelsPerSecond.dx < -300) { // More generous threshold
-                // Swipe left: show active gates on left
-                setState(() {
-                  currentView = 'left';
-                  responseText = 'Active Gates: ${activeGates.join(', ')}';
-                });
-              } else if (details.velocity.pixelsPerSecond.dx > 300) { // More generous threshold
-                // Swipe right: fetch HTML and show on right
-                currentView = 'right';
-                fetchChartQuickHTML();
+              if (details.velocity.pixelsPerSecond.dx < -300) { // Swipe left
+                double target = panOffset - 200;
+                _panAnimation = Tween<double>(begin: panOffset, end: target).animate(_panController);
+                _panController.forward(from: 0.0);
+              } else if (details.velocity.pixelsPerSecond.dx > 300) { // Swipe right
+                double target = panOffset + 200;
+                _panAnimation = Tween<double>(begin: panOffset, end: target).animate(_panController);
+                _panController.forward(from: 0.0);
               }
             },
             onDoubleTap: () {
-              // Reset to chart view
-              setState(() {
-                currentView = 'chart';
-                responseText = '';
-              });
+              // Reset pan
+              _panAnimation = Tween<double>(begin: panOffset, end: 0.0).animate(_panController);
+              _panController.forward(from: 0.0);
             },
             child: InteractiveViewer(
               transformationController: _transformationController,
               panEnabled: false, // Disable panning
               child: CustomPaint(
-                painter: CanvasPainter(chart, screenSize, responseText, currentView),
+                painter: ChartPainter(chart, screenSize, panOffset, leftText, rightText),
                 size: Size.infinite,
               ),
             ),
