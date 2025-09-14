@@ -1,12 +1,16 @@
 name: Build and Release APK
 on:
   push:
-    tags: ['v*']  # Trigger on version tags like v1.0.0
+    tags: ['v*']
 jobs:
   build-android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/cache@v3  # Cache Android SDK
+        with:
+          path: /usr/local/lib/android/sdk
+          key: android-sdk-${{ runner.os }}
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.35.3'
@@ -16,6 +20,6 @@ jobs:
         with:
           files: build/app/outputs/flutter-apk/app-prod-release.apk
           tag_name: ${{ github.ref_name }}
-          token: ${{ secrets.GH_TOKEN }}  # Use the PAT
+          token: ${{ secrets.GH_TOKEN }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
