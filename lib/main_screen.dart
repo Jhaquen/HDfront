@@ -297,7 +297,7 @@ Future<void> fetchChartQuickHTML() async {
   }
 }
 
-  Future<bool> login(String username, String password) async {
+  Future<http.Response> login(String username, String password) async {
     final url = Uri.parse('$backendUrl/login');
     final response = await http.post(
       url,
@@ -310,13 +310,7 @@ Future<void> fetchChartQuickHTML() async {
       }),
     );
 
-    if (response.statusCode == 200) {
-      print('Login successful: ${response.body}');
-      return true;
-    } else {
-      print('Login failed: ${response.body}');
-      return false;
-    }
+    return response;
   }
 
   void _showLoginDialog() {
@@ -350,15 +344,15 @@ Future<void> fetchChartQuickHTML() async {
                 const password = 'pw1';
 
                 try {
-                  final success = await login(username, password);
-                  if (success) {
+                  final response = await login(username, password);
+                  if (response.statusCode == 200) {
                     setState(() {
                       isLoggedIn = true;
                     });
                     Navigator.of(context).pop();
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Login failed')),
+                      SnackBar(content: Text('Login failed: ${response.body}')),
                     );
                   }
                 } catch (e) {
