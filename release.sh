@@ -18,19 +18,19 @@ COMMIT_MESSAGE="$1"
 echo "--- Starting Git Automation ---"
 
 # Step 1: Get the last tag number and increment it
-LAST_TAG=$(git tag --sort=-committerdate | grep -E '^v0\.0\.[0-9]+$' | head -n 1)
+LAST_TAG=$(git tag --sort=-committerdate | grep -E '^v1\.0\.[0-9]+$' | head -n 1)
 
 if [ -z "$LAST_TAG" ]; then
-    # No existing tags, start at 1
-    NEW_TAG_NUMBER=1
+    # No existing tags, start at 0
+    NEW_TAG_NUMBER=0
 else
     # Extract the number and increment it
-    TAG_NUMBER=$(echo "$LAST_TAG" | sed 's/v0\.0\.//')
+    TAG_NUMBER=$(echo "$LAST_TAG" | sed 's/v1\.0\.//')
     NEW_TAG_NUMBER=$((TAG_NUMBER + 1))
 fi
 
-NEW_TAG="v0.0.$NEW_TAG_NUMBER"
-NEW_VERSION="0.0.$NEW_TAG_NUMBER+1"
+NEW_TAG="v1.0.$NEW_TAG_NUMBER"
+NEW_VERSION="1.0.$NEW_TAG_NUMBER+1"
 
 # Step 2: Update pubspec.yaml with the new version
 echo "Updating pubspec.yaml to version: $NEW_VERSION..."
