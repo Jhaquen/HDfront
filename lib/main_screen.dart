@@ -273,7 +273,7 @@ Future<void> fetchChartQuickHTML() async {
     chart.focusValue = _focusAnimation.value;
 
     renderer.CanvasText leftText = renderer.CanvasText(
-      text: 'Active Gates: ${activeGates.join(', ')}',
+      text: 'Active Gates: ${activeGates.join(', ')}\n${backendUrl}',
       position: const Offset(-150, 100),
       fontSize: 12,
       color: Colors.black,

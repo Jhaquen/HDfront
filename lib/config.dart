@@ -1,4 +1,6 @@
 // Global configuration for the app
-// const String backendUrl = 'https://hdapp-537407794596.europe-west1.run.app';
-// For testing: 
-const String backendUrl = 'http://192.168.0.165:8080';
+import 'config_local.dart' as local;
+import 'config_prod.dart' as prod;
+
+const bool isRelease = bool.fromEnvironment('RELEASE');
+const String backendUrl = isRelease ? prod.backendUrl : local.backendUrl;
