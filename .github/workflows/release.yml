@@ -11,10 +11,10 @@ jobs:
         with:
           flutter-version: '3.35.3'
       - run: flutter pub get
-      - run: flutter build apk --flavor prod --release --dart-define=RELEASE=true
+      - run: flutter build apk --flavor prod --release --dart-define=RELEASE=true --dart-define=BACKEND_URL=https://hdapp-537407794596.europe-west1.run.app
       - uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/app-prod-release.apk
           tag_name: ${{ github.ref_name }}
           token: ${{ secrets.GH_TOKEN }}  # Use the PAT
         env:
@@ -28,7 +28,7 @@ jobs:
         with:
           flutter-version: '3.35.3'
       - run: flutter pub get
-      - run: flutter build ios --flavor prod --release --dart-define=RELEASE=true --no-codesign
+      - run: flutter build ios --flavor prod --release --dart-define=RELEASE=true --dart-define=BACKEND_URL=https://hdapp-537407794596.europe-west1.run.app --no-codesign
       - uses: actions/upload-artifact@v3
         with:
           name: release-ios

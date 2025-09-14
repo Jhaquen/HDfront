@@ -33,8 +33,6 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Local config (contains sensitive local URLs)
-lib/config_local.dart
 
 # Symbolication related
 app.*.symbols
