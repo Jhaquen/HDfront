@@ -19,17 +19,3 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}  # Use the PAT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-ios:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.35.3'
-      - run: flutter pub get
-      - run: flutter build ios --flavor prod --release --dart-define=RELEASE=true --dart-define=BACKEND_URL=https://hdapp-537407794596.europe-west1.run.app --no-codesign
-      - uses: actions/upload-artifact@v3
-        with:
-          name: release-ios
-          path: build/ios/iphoneos/Runner.app
