@@ -34,7 +34,7 @@ NEW_VERSION="0.0.$NEW_TAG_NUMBER+1"
 
 # Step 2: Update pubspec.yaml with the new version
 echo "Updating pubspec.yaml to version: $NEW_VERSION..."
-sed -i "s/version: .*/version: $NEW_VERSION/" pubspec.yaml
+sed -i '' "s/version: .*/version: $NEW_VERSION/" pubspec.yaml
 
 # Step 3: Add all changes
 echo "Adding all changes..."
