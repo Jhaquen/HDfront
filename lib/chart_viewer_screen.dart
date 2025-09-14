@@ -97,11 +97,6 @@ class _ChartViewerScreenState extends State<ChartViewerScreen> with TickerProvid
     }
   }
 
-  String _parseHtml(String html) {
-    final document = htmlParser.parse(html);
-    return document.body?.text ?? html;  // Strip HTML tags
-  }
-
   @override
   void dispose() {
     _animationController.dispose();
