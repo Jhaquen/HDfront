@@ -12,13 +12,16 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle.kts', 'android/app/build.gradle.kts', 'android/settings.gradle.kts') }}
           restore-keys: |
             gradle-${{ runner.os }}-
-      - uses: actions/cache@v3  # Cache Android SDK
+      - uses: actions/cache@v3
         with:
-          path: /usr/local/lib/android/sdk
-          key: android-sdk-${{ runner.os }}
+          path: |
+            ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.yaml', '**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.35.3'
