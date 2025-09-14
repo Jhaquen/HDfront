@@ -245,6 +245,14 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _refreshData() async {
+    await fetchData();
+    await fetchChartQuickHTML();
+    if (isRelease) {
+      await _checkForUpdate();
+    }
+  }
+
   Future<void> fetchData() async {
     try {
       final response = await http.get(Uri.parse('$backendUrl/'));
@@ -575,6 +583,12 @@ Future<void> fetchChartQuickHTML() async {
                   mini: true,
                   onPressed: () => setState(() => chart.scale = (chart.scale - 0.1).clamp(0.1, 5.0)),
                   child: const Icon(Icons.remove),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton(
+                  mini: true,
+                  onPressed: _refreshData,
+                  child: const Icon(Icons.refresh),
                 ),
               ],
             ),
