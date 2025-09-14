@@ -245,14 +245,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _refreshData() async {
-    await fetchData();
-    await fetchChartQuickHTML();
-    if (isRelease) {
-      await _checkForUpdate();
-    }
-  }
-
   Future<void> fetchData() async {
     try {
       final response = await http.get(Uri.parse('$backendUrl/'));
@@ -469,135 +461,125 @@ Future<void> fetchChartQuickHTML() async {
           ],
         ),
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: SizedBox(
-            height: screenSize.height,
-            width: screenSize.width,
-            child: Stack(
+      body: Stack(
+        children: [
+          GestureDetector(
+            onTapUp: (TapUpDetails details) {
+              final localPosition = details.localPosition;
+              // Inverse transform to get canvas position
+              final Matrix4 inverse = Matrix4.inverted(_transformationController.value);
+              final canvasPosition = MatrixUtils.transformPoint(inverse, localPosition);
+              // First check gates
+              for (final obj in chart.objects) {
+                for (final gate in obj.gates) {
+                  final gateAbsPos = obj.position + _rotateOffset(gate.relativePosition, obj.rotation);
+                  if ((canvasPosition - gateAbsPos).distance < 4) {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: Text('Gate ${gate.number}'),
+                          content: Text('Sample text from backend for gate ${gate.number}'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                    return;
+                  }
+                }
+              }
+              // Then check objects for focus
+              for (int i = 0; i < chart.objects.length; i++) {
+                final obj = chart.objects[i];
+                if ((canvasPosition - obj.position).distance < obj.size / 2) {
+                  setState(() {
+                    focusedObjectIndex = i;
+                  });
+                  _focusController.forward(from: 0.0);
+                  break;
+                }
+              }
+            },
+            onDoubleTap: () {
+              setState(() {
+                focusedObjectIndex = -1;
+              });
+              _focusController.reverse();
+            },
+            onHorizontalDragEnd: (DragEndDetails details) {
+              if (details.velocity.pixelsPerSecond.dx < -300) { // Swipe left
+                double target = panOffset - 200;
+                _panAnimation = Tween<double>(begin: panOffset, end: target).animate(_panController);
+                _panController.forward(from: 0.0);
+              } else if (details.velocity.pixelsPerSecond.dx > 300) { // Swipe right
+                double target = panOffset + 200;
+                _panAnimation = Tween<double>(begin: panOffset, end: target).animate(_panController);
+                _panController.forward(from: 0.0);
+              }
+            },
+            child: InteractiveViewer(
+              transformationController: _transformationController,
+              panEnabled: false, // Disable panning
+              child: CustomPaint(
+                painter: renderer.ChartPainter(chart, screenSize, panOffset, leftText, rightText),
+                size: Size.infinite,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 10 + topPadding,
+            left: 10,
+            child: IconButton(
+              icon: const Icon(Icons.menu, size: 30),
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            ),
+          ),
+          Positioned(
+            top: 10 + topPadding,
+            left: 60,
+            right: 10,
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.black, width: 1),
+              ),
+              child: Center(
+                child: Text(
+                  'Status: $transit',
+                  style: const TextStyle(fontSize: 14, color: Colors.black),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: Column(
               children: [
-                GestureDetector(
-                  onTapUp: (TapUpDetails details) {
-                    final localPosition = details.localPosition;
-                    // Inverse transform to get canvas position
-                    final Matrix4 inverse = Matrix4.inverted(_transformationController.value);
-                    final canvasPosition = MatrixUtils.transformPoint(inverse, localPosition);
-                    // First check gates
-                    for (final obj in chart.objects) {
-                      for (final gate in obj.gates) {
-                        final gateAbsPos = obj.position + _rotateOffset(gate.relativePosition, obj.rotation);
-                        if ((canvasPosition - gateAbsPos).distance < 4) {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: Text('Gate ${gate.number}'),
-                                content: Text('Sample text from backend for gate ${gate.number}'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(),
-                                    child: const Text('OK'),
-                                  ),
-                                ],
-                              ),
-                            },
-                          );
-                          return;
-                        }
-                      }
-                    }
-                    // Then check objects for focus
-                    for (int i = 0; i < chart.objects.length; i++) {
-                      final obj = chart.objects[i];
-                      if ((canvasPosition - obj.position).distance < obj.size / 2) {
-                        setState(() {
-                          focusedObjectIndex = i;
-                        });
-                        _focusController.forward(from: 0.0);
-                        break;
-                      }
-                    }
-                  },
-                  onDoubleTap: () {
-                    setState(() {
-                      focusedObjectIndex = -1;
-                    });
-                    _focusController.reverse();
-                  },
-                  onHorizontalDragEnd: (DragEndDetails details) {
-                    if (details.velocity.pixelsPerSecond.dx < -300) { // Swipe left
-                      double target = panOffset - 200;
-                      _panAnimation = Tween<double>(begin: panOffset, end: target).animate(_panController);
-                      _panController.forward(from: 0.0);
-                    } else if (details.velocity.pixelsPerSecond.dx > 300) { // Swipe right
-                      double target = panOffset + 200;
-                      _panAnimation = Tween<double>(begin: panOffset, end: target).animate(_panController);
-                      _panController.forward(from: 0.0);
-                    }
-                  },
-                  child: InteractiveViewer(
-                    transformationController: _transformationController,
-                    panEnabled: false, // Disable panning
-                    child: CustomPaint(
-                      painter: renderer.ChartPainter(chart, screenSize, panOffset, leftText, rightText),
-                      size: Size.infinite,
-                    ),
-                  ),
+                FloatingActionButton(
+                  mini: true,
+                  onPressed: () => setState(() => chart.scale += 0.1),
+                  child: const Icon(Icons.add),
                 ),
-                Positioned(
-                  top: 10 + topPadding,
-                  left: 10,
-                  child: IconButton(
-                    icon: const Icon(Icons.menu, size: 30),
-                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                  ),
-                ),
-                Positioned(
-                  top: 10 + topPadding,
-                  left: 60,
-                  right: 10,
-                  child: Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.black, width: 1),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Status: $transit',
-                        style: const TextStyle(fontSize: 14, color: Colors.black),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 20,
-                  right: 20,
-                  child: Column(
-                    children: [
-                      FloatingActionButton(
-                        mini: true,
-                        onPressed: () => setState(() => chart.scale += 0.1),
-                        child: const Icon(Icons.add),
-                      ),
-                      const SizedBox(height: 10),
-                      FloatingActionButton(
-                        mini: true,
-                        onPressed: () => setState(() => chart.scale = (chart.scale - 0.1).clamp(0.1, 5.0)),
-                        child: const Icon(Icons.remove),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 10),
+                FloatingActionButton(
+                  mini: true,
+                  onPressed: () => setState(() => chart.scale = (chart.scale - 0.1).clamp(0.1, 5.0)),
+                  child: const Icon(Icons.remove),
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
