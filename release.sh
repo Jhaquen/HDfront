@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- User Configuration ---
-BRANCH_NAME="main"
+BRANCH_NAME="master"
 REMOTE_NAME="origin"
 
 # --- Script Logic ---
@@ -17,19 +17,7 @@ COMMIT_MESSAGE="$1"
 
 echo "--- Starting Git Automation ---"
 
-# Step 1: Add all changes
-echo "Adding all changes..."
-git add .
-
-# Step 2: Commit changes with the provided message
-echo "Committing with message: '$COMMIT_MESSAGE'..."
-git commit -m "$COMMIT_MESSAGE"
-
-# Step 3: Push the commit to the remote branch
-echo "Pushing to $REMOTE_NAME/$BRANCH_NAME..."
-git push "$REMOTE_NAME" "$BRANCH_NAME"
-
-# Step 4: Get the last tag number and increment it
+# Step 1: Get the last tag number and increment it
 LAST_TAG=$(git tag --sort=-committerdate | grep -E '^v0\.0\.[0-9]+$' | head -n 1)
 
 if [ -z "$LAST_TAG" ]; then
@@ -42,8 +30,25 @@ else
 fi
 
 NEW_TAG="v0.0.$NEW_TAG_NUMBER"
+NEW_VERSION="0.0.$NEW_TAG_NUMBER+1"
 
-# Step 5: Create and push the new tag
+# Step 2: Update pubspec.yaml with the new version
+echo "Updating pubspec.yaml to version: $NEW_VERSION..."
+sed -i "s/version: .*/version: $NEW_VERSION/" pubspec.yaml
+
+# Step 3: Add all changes
+echo "Adding all changes..."
+git add .
+
+# Step 4: Commit changes with the provided message
+echo "Committing with message: '$COMMIT_MESSAGE'..."
+git commit -m "$COMMIT_MESSAGE"
+
+# Step 5: Push the commit to the remote branch
+echo "Pushing to $REMOTE_NAME/$BRANCH_NAME..."
+git push "$REMOTE_NAME" "$BRANCH_NAME"
+
+# Step 6: Create and push the new tag
 echo "Creating new tag: $NEW_TAG..."
 git tag "$NEW_TAG"
 
